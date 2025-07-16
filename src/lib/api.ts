@@ -134,151 +134,153 @@ export class BookmarkAPI {
 
   private static async extractMetadata(url: string): Promise<{ title: string; favicon: string }> {
     try {
+      return await this.extractMetadataWithJina(url);
+    } catch (error) {
+      console.error('Error extracting metadata with Jina, using fallback:', error);
+      return this.getFallbackMetadata(url);
+    }
+  }
+
+  private static async extractMetadataWithJina(url: string): Promise<{ title: string; favicon: string }> {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const response = await fetch(jinaUrl, {
+      headers: {
+        'Accept': 'text/plain',
+        'User-Agent': 'Mozilla/5.0 (compatible; LinkSaver/1.0)'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Jina AI returned status ${response.status}`);
+    }
+    
+    const content = await response.text();
+    
+    // Extract title from the first line or first meaningful content
+    const lines = content.split('\n').filter(line => line.trim());
+    let title = '';
+    
+    // Look for title-like content in the first few lines
+    for (const line of lines.slice(0, 5)) {
+      const trimmed = line.trim();
+      if (trimmed.length > 10 && trimmed.length < 200 && !trimmed.includes('http')) {
+        title = trimmed;
+        break;
+      }
+    }
+    
+    if (!title) {
+      title = this.getFallbackMetadata(url).title;
+    }
+    
+    const domain = new URL(url).hostname;
+    const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    
+    return { title, favicon };
+  }
+
+  private static getFallbackMetadata(url: string): { title: string; favicon: string } {
+    try {
       const domain = new URL(url).hostname;
       
-      // Use a CORS proxy to fetch the page content
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const response = await fetch(proxyUrl);
+      // Create a more readable title from the domain
+      let title = domain;
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
+      // Remove www. prefix
+      if (title.startsWith('www.')) {
+        title = title.substring(4);
       }
       
-      const data = await response.json();
-      const html = data.contents;
-      
-      // Create a temporary DOM element to parse HTML
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      
-      // Extract title with multiple fallbacks
-      let title = '';
-      
-      // Try Open Graph title
-      const ogTitle = doc.querySelector('meta[property="og:title"]');
-      if (ogTitle) {
-        title = ogTitle.getAttribute('content') || '';
+      // Capitalize first letter and replace dots with spaces for readability
+      const parts = title.split('.');
+      if (parts.length > 1) {
+        title = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
       }
       
-      // Try Twitter title
-      if (!title) {
-        const twitterTitle = doc.querySelector('meta[name="twitter:title"]');
-        if (twitterTitle) {
-          title = twitterTitle.getAttribute('content') || '';
-        }
-      }
-      
-      // Try regular title tag
-      if (!title) {
-        const titleTag = doc.querySelector('title');
-        if (titleTag) {
-          title = titleTag.textContent || '';
-        }
-      }
-      
-      // Try h1 tag
-      if (!title) {
-        const h1Tag = doc.querySelector('h1');
-        if (h1Tag) {
-          title = h1Tag.textContent || '';
-        }
-      }
-      
-      // Fallback to domain
-      if (!title) {
-        title = domain;
-      }
-      
-      // Clean up title
-      title = title.trim().substring(0, 200);
-      
-      // Extract favicon
-      let favicon = '';
-      
-      // Try to find favicon link
-      const faviconLink = doc.querySelector('link[rel*="icon"]');
-      if (faviconLink) {
-        const href = faviconLink.getAttribute('href');
-        if (href) {
-          // Handle relative URLs
-          if (href.startsWith('//')) {
-            favicon = `https:${href}`;
-          } else if (href.startsWith('/')) {
-            favicon = `${new URL(url).origin}${href}`;
-          } else if (href.startsWith('http')) {
-            favicon = href;
-          } else {
-            favicon = `${new URL(url).origin}/${href}`;
-          }
-        }
-      }
-      
-      // Fallback to Google favicon service
-      if (!favicon) {
-        favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-      }
+      const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
       
       return {
-        title,
+        title: domain,
         favicon
       };
     } catch (error) {
-      console.error('Error extracting metadata:', error);
-      const domain = new URL(url).hostname;
       return {
-        title: domain,
-        favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+        title: 'Saved Link',
+        favicon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMTQgN0gyMUwxNSAxMUwxNyAyMEwxMiAxNkw3IDIwTDkgMTFMMyA3SDEwTDEyIDJaIiBmaWxsPSIjOTQ5NWE3Ii8+Cjwvc3ZnPgo='
       };
     }
   }
 
   private static async generateSummary(url: string): Promise<string> {
     try {
-      // Use Jina AI Reader API to get clean content and summary
-      const jinaUrl = `https://r.jina.ai/${url}`;
-      const response = await fetch(jinaUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'X-Return-Format': 'json'
-        }
-      });
-      
-      if (!response.ok) {
-        console.error('Jina AI response not ok:', response.status);
-        return `Summary unavailable (Jina AI returned status ${response.status})`;
-      }
-      
-      const jinaData = await response.json();
-      
-      // Extract content from Jina AI response
-      let content = '';
-      if (jinaData.data && jinaData.data.content) {
-        content = String(jinaData.data.content);
-      } else if (jinaData.content) {
-        content = String(jinaData.content);
-      } else if (typeof jinaData === 'string') {
-        content = jinaData;
-      }
-      
-      if (!content || content.length < 50) {
-        return 'No meaningful content could be extracted for this link.';
-      }
-      
-      // Clean and truncate content for summary
-      const cleanContent = content
-        .replace(/\s+/g, ' ')
-        .replace(/\n+/g, ' ')
-        .trim();
-      
-      // Return first 300 characters as summary
-      const summary = cleanContent.length > 300 
-        ? cleanContent.substring(0, 300) + '...'
-        : cleanContent;
-      
-      return summary || 'Summary extracted but content was empty.';
+      return await this.generateSummaryWithJina(url);
     } catch (error) {
-      console.error('Error generating summary:', error);
-      return 'Summary could not be generated due to an error.';
+      console.error('Error generating summary with Jina, using fallback:', error);
+      return this.getFallbackSummary(url);
+    }
+  }
+
+  private static async generateSummaryWithJina(url: string): Promise<string> {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const response = await fetch(jinaUrl, {
+      headers: {
+        'Accept': 'text/plain',
+        'User-Agent': 'Mozilla/5.0 (compatible; LinkSaver/1.0)'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Jina AI returned status ${response.status}`);
+    }
+    
+    const content = await response.text();
+    
+    if (!content || content.length < 50) {
+      throw new Error('No meaningful content extracted');
+    }
+    
+    // Clean and process the content
+    const lines = content.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 20 && !line.startsWith('http'))
+      .slice(0, 10); // Take first 10 meaningful lines
+    
+    if (lines.length === 0) {
+      throw new Error('No meaningful content found');
+    }
+    
+    // Join lines and create summary
+    const summary = lines.join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Return first 300 characters as summary
+    return summary.length > 300 
+      ? summary.substring(0, 300) + '...'
+      : summary;
+  }
+
+  private static getFallbackSummary(url: string): string {
+    try {
+      const domain = new URL(url).hostname;
+      const path = new URL(url).pathname;
+      
+      // Create a basic summary from URL structure
+      let summary = `Content from ${domain}`;
+      
+      if (path && path !== '/') {
+        const pathParts = path.split('/').filter(part => part);
+        if (pathParts.length > 0) {
+          const lastPart = pathParts[pathParts.length - 1]
+            .replace(/[-_]/g, ' ')
+            .replace(/\.[^.]*$/, ''); // Remove file extension
+          summary += ` - ${lastPart}`;
+        }
+      }
+      
+      return summary;
+    } catch (error) {
+      return 'Link saved successfully. Summary could not be generated.';
     }
   }
 }
