@@ -234,60 +234,47 @@ export class BookmarkAPI {
 
   private static async generateSummary(url: string): Promise<string> {
     try {
-      // Use a CORS proxy to fetch the page content
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const response = await fetch(proxyUrl);
+      // Use Jina AI Reader API to get clean content and summary
+      const jinaUrl = `https://r.jina.ai/${url}`;
+      const response = await fetch(jinaUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Return-Format': 'json'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
+        console.error('Jina AI response not ok:', response.status);
+        return `Summary unavailable (Jina AI returned status ${response.status})`;
+      
+      const jinaData = await response.json();
+      
+      // Extract content from Jina AI response
+      let content = '';
+      if (jinaData.data && jinaData.data.content) {
+        content = String(jinaData.data.content);
+      } else if (jinaData.content) {
+        content = String(jinaData.content);
+      } else if (typeof jinaData === 'string') {
+        content = jinaData;
       }
       
-      const data = await response.json();
-      const html = data.contents;
-      
-      // Create a temporary DOM element to parse HTML
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      
-      let summary = '';
-      
-      // Try Open Graph description
-      const ogDescription = doc.querySelector('meta[property="og:description"]');
-      if (ogDescription) {
-        summary = ogDescription.getAttribute('content') || '';
+      if (!content || content.length < 50) {
+        return 'No meaningful content could be extracted for this link.';
       }
       
-      // Try meta description
-      if (!summary) {
-        const metaDescription = doc.querySelector('meta[name="description"]');
-        if (metaDescription) {
-          summary = metaDescription.getAttribute('content') || '';
-        }
-      }
+      // Clean and truncate content for summary
+      const cleanContent = content
+        .replace(/\s+/g, ' ')
+        .replace(/\n+/g, ' ')
+        .trim();
       
-      // Try Twitter description
-      if (!summary) {
-        const twitterDescription = doc.querySelector('meta[name="twitter:description"]');
-        if (twitterDescription) {
-          summary = twitterDescription.getAttribute('content') || '';
-        }
-      }
+      // Return first 300 characters as summary
+      const summary = cleanContent.length > 300 
+        ? cleanContent.substring(0, 300) + '...'
+        : cleanContent;
       
-      // Try to extract from first paragraph
-      if (!summary) {
-        const firstParagraph = doc.querySelector('p');
-        if (firstParagraph && firstParagraph.textContent) {
-          summary = firstParagraph.textContent.trim();
-        }
-      }
-      
-      // Clean up summary
-      if (summary) {
-        summary = summary.trim().substring(0, 500);
-        return summary;
-      }
-      
-      return 'No summary available for this link.';
+      return summary || 'Summary extracted but content was empty.';
     } catch (error) {
       console.error('Error generating summary:', error);
       return 'Summary could not be generated due to an error.';
