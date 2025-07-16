@@ -406,8 +406,8 @@ export class BookmarkAPI {
       const domain = urlObj.hostname;
       const path = urlObj.pathname;
       
-      // Create a descriptive summary from URL structure
-      let summary = `Content from ${domain.replace('www.', '')}`;
+      // Create a more detailed descriptive summary from URL structure
+      let summary = `This is a saved link from ${domain.replace('www.', '')}. `;
       
       if (path && path !== '/') {
         const pathParts = path.split('/').filter(part => part);
@@ -415,10 +415,12 @@ export class BookmarkAPI {
           const lastPart = pathParts[pathParts.length - 1]
             .replace(/[-_]/g, ' ')
             .replace(/\.[^.]*$/, '') // Remove file extension
-            .toLowerCase();
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
           
           if (lastPart.length > 0 && lastPart.length < 50) {
-            summary += `. This appears to be about ${lastPart}`;
+            summary += `The page appears to be about "${lastPart}". `;
           }
         }
       }
@@ -426,12 +428,15 @@ export class BookmarkAPI {
       // Add some context based on domain
       const domainContext = this.getDomainContext(domain);
       if (domainContext) {
-        summary += `. ${domainContext}`;
+        summary += `${domainContext}. `;
       }
       
-      return summary + '.';
+      // Add more generic helpful text to make it longer
+      summary += `You can click to visit this link and explore the content. This bookmark was saved to help you remember and organize important web resources for future reference.`;
+      
+      return summary;
     } catch (error) {
-      return 'This is a saved link. The content summary could not be generated automatically.';
+      return 'This is a saved link that you bookmarked for future reference. The content summary could not be generated automatically, but you can click the link to visit the page and explore its content. This bookmark will help you organize and remember important web resources.';
     }
   }
 

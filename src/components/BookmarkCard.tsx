@@ -114,7 +114,8 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, onDelete, 
           {bookmark.summary}
         </p>
 
-        <div className="flex items-center justify-between">
+        <div className="space-y-3">
+          {/* Tags Section */}
           <div className="flex items-center space-x-4">
             {editing ? (
               <div className="flex items-center space-x-2 flex-1">
@@ -140,29 +141,32 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, onDelete, 
                 </button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap">
+                <Tag className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                 {bookmark.tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-2">
                     {bookmark.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-medium"
                       >
-                        <Tag className="w-3 h-3 mr-1" />
                         {tag}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">No tags</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 italic">No tags added</span>
                 )}
               </div>
             )}
           </div>
           
-          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-            <Calendar className="w-4 h-4 mr-1" />
-            {formatDate(bookmark.created_at)}
+          {/* Date Section */}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+              <Calendar className="w-4 h-4 mr-2" />
+              <span>Saved on {formatDate(bookmark.created_at)}</span>
+            </div>
           </div>
         </div>
       </div>
