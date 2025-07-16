@@ -246,6 +246,7 @@ export class BookmarkAPI {
       if (!response.ok) {
         console.error('Jina AI response not ok:', response.status);
         return `Summary unavailable (Jina AI returned status ${response.status})`;
+      }
       
       const jinaData = await response.json();
       
