@@ -15,6 +15,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode, onToggleMode }) => {
   const [error, setError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const { signIn, signUp } = useAuth();
+  
+  const isSignUp = mode === 'signup';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +27,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode, onToggleMode }) => {
     // Validate password length for signup
     if (isSignUp && password.length < 6) {
       setPasswordError('Password must be at least 6 characters long');
+      setLoading(false);
       return;
     }
 
