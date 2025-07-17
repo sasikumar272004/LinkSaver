@@ -1,17 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './Header';
 import { BookmarkForm } from './BookmarkForm';
 import { BookmarkList } from './BookmarkList';
 import { BookmarkAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Bookmark } from '../types';
-import { Sparkles, TrendingUp, Clock, Star } from 'lucide-react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
 
 export const Dashboard: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  
+  const heroRef = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
 
   const fetchBookmarks = async () => {
     if (!user) return;
@@ -31,6 +37,27 @@ export const Dashboard: React.FC = () => {
     fetchBookmarks();
   }, [user]);
 
+  useEffect(() => {
+    if (heroRef.current && statsRef.current && !loading) {
+      gsap.fromTo(heroRef.current,
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" }
+      );
+      
+      gsap.fromTo(statsRef.current.children,
+        { y: 20, opacity: 0 },
+        { 
+          y: 0, 
+          opacity: 1, 
+          duration: 0.6, 
+          stagger: 0.1, 
+          ease: "power2.out",
+          delay: 0.3
+        }
+      );
+    }
+  }, [loading]);
+
   const handleBookmarkCreated = () => {
     fetchBookmarks();
   };
@@ -49,112 +76,66 @@ export const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/30">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Header />
         <div className="flex items-center justify-center h-96">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-blue-200 dark:border-blue-800 rounded-full animate-spin border-t-blue-600 dark:border-t-blue-400"></div>
-            <div className="absolute inset-0 w-20 h-20 border-4 border-transparent rounded-full animate-ping border-t-blue-400"></div>
-          </div>
+          <div className="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 border-t-gray-900 dark:border-t-white rounded-full animate-spin"></div>
         </div>
       </div>
     );
   }
 
   const stats = [
-    {
-      icon: Star,
-      label: 'Total Bookmarks',
-      value: bookmarks.length,
-      color: 'text-yellow-600 dark:text-yellow-400',
-      bg: 'bg-yellow-100 dark:bg-yellow-900/30'
-    },
-    {
-      icon: TrendingUp,
-      label: 'This Week',
-      value: bookmarks.filter(b => new Date(b.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
-      color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-100 dark:bg-green-900/30'
-    },
-    {
-      icon: Clock,
-      label: 'Recent',
-      value: bookmarks.filter(b => new Date(b.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length,
-      color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-100 dark:bg-blue-900/30'
-    }
+    { label: 'Total Bookmarks', value: bookmarks.length },
+    { label: 'This Week', value: bookmarks.filter(b => new Date(b.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length },
+    { label: 'Today', value: bookmarks.filter(b => new Date(b.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/30">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10 dark:from-blue-400/5 dark:to-purple-400/5"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm font-medium mb-4 animate-fade-in">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Your Personal Link Library
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 dark:from-white dark:via-blue-200 dark:to-purple-200 bg-clip-text text-transparent mb-4 animate-slide-up">
-              Save. Organize. Discover.
-            </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto animate-slide-up animation-delay-200">
-              Transform your browsing into a curated collection of knowledge with AI-powered summaries and smart organization.
-            </p>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            {stats.map((stat, index) => (
-              <div
-                key={stat.label}
-                className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 dark:border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 animate-scale-in"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="flex items-center">
-                  <div className={`p-3 rounded-xl ${stat.bg} mr-4`}>
-                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
+        <div ref={heroRef} className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold gradient-text mb-4 text-balance">
+            Your Personal Link Library
+          </h1>
+          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto text-balance">
+            Save, organize, and rediscover your favorite content with intelligent summaries and seamless search.
+          </p>
         </div>
-      </div>
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="animate-slide-up animation-delay-400">
-          <BookmarkForm onBookmarkCreated={handleBookmarkCreated} />
+
+        {/* Stats */}
+        <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="glass-effect rounded-2xl p-6 card-shadow hover:card-shadow-hover transition-all duration-200"
+            >
+              <div className="text-center">
+                <div className="text-3xl font-bold gradient-text mb-2">{stat.value}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</div>
+              </div>
+            </div>
+          ))}
         </div>
         
+        <BookmarkForm onBookmarkCreated={handleBookmarkCreated} />
+        
         {error && (
-          <div className="mb-8 animate-shake">
-            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-r-lg">
-              <div className="flex">
-                <div className="ml-3">
-                  <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-                </div>
-              </div>
-            </div>
+          <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
         
-        <div className="animate-slide-up animation-delay-600">
-          <BookmarkList
-            bookmarks={bookmarks}
-            onBookmarkDeleted={handleBookmarkDeleted}
-            onBookmarkUpdated={handleBookmarkUpdated}
-            onBookmarksReordered={handleBookmarksReordered}
-          />
-        </div>
-      </main>
+        <BookmarkList
+          bookmarks={bookmarks}
+          onBookmarkDeleted={handleBookmarkDeleted}
+          onBookmarkUpdated={handleBookmarkUpdated}
+          onBookmarksReordered={handleBookmarksReordered}
+        />
+      </div>
     </div>
   );
 };
