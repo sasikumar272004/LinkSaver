@@ -5,8 +5,19 @@ import { TagFilter } from './TagFilter';
 import { Bookmark } from '../types';
 import { BookmarkAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Grid, List, SortAsc, SortDesc, Filter } from 'lucide-react';
+import { 
+  Search, 
+  Grid, 
+  List, 
+  SortAsc, 
+  SortDesc, 
+  Filter,
+  Sparkles,
+  BookOpen,
+  TrendingUp
+} from 'lucide-react';
 import { gsap } from 'gsap';
+import toast from 'react-hot-toast';
 
 interface BookmarkListProps {
   bookmarks: Bookmark[];
@@ -28,15 +39,17 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   
   const controlsRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (controlsRef.current) {
       gsap.fromTo(controlsRef.current,
         { y: 20, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", delay: 0.8 }
+        { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", delay: 0.4 }
       );
     }
   }, []);
@@ -49,15 +62,17 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
     });
     setAvailableTags(Array.from(allTags).sort());
 
-    // Filter bookmarks
+    // Filter and search bookmarks
     let filtered = bookmarks;
 
+    // Tag filtering
     if (selectedTags.length > 0) {
       filtered = filtered.filter(bookmark =>
         selectedTags.some(tag => bookmark.tags.includes(tag))
       );
     }
 
+    // Search filtering
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(bookmark =>
@@ -68,7 +83,7 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
       );
     }
 
-    // Sort bookmarks
+    // Sorting
     filtered.sort((a, b) => {
       const dateA = new Date(a.created_at).getTime();
       const dateB = new Date(b.created_at).getTime();
@@ -103,24 +118,45 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
 
     try {
       await BookmarkAPI.updateBookmarkPositions(items);
+      toast.success('Bookmarks reordered');
     } catch (error) {
       console.error('Error updating bookmark positions:', error);
       setFilteredBookmarks(filteredBookmarks);
+      toast.error('Failed to reorder bookmarks');
+    }
+  };
+
+  const handleSearch = async (query: string) => {
+    if (!user || !query.trim()) return;
+    
+    setLoading(true);
+    try {
+      const results = await BookmarkAPI.searchBookmarks(user.id, query, {
+        tags: selectedTags,
+        fuzzy: true
+      });
+      setFilteredBookmarks(results);
+    } catch (error) {
+      console.error('Search failed:', error);
+      toast.error('Search failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   if (bookmarks.length === 0) {
     return (
       <div className="text-center py-20">
-        <div className="glass-effect rounded-2xl p-12 max-w-md mx-auto card-shadow">
-          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Search className="w-8 h-8 text-gray-400" />
+        <div className="surface-elevated rounded-2xl p-12 max-w-md mx-auto">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <BookOpen className="w-10 h-10 text-blue-600 dark:text-blue-400" />
           </div>
-          <h3 className="text-xl font-semibold gradient-text mb-3">
+          <h3 className="text-2xl font-bold text-gradient mb-4">
             No bookmarks yet
           </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Start building your personal link library by adding your first bookmark above.
+          <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+            Start building your personal knowledge vault by adding your first bookmark above. 
+            Save articles, resources, and links you want to remember.
           </p>
         </div>
       </div>
@@ -130,19 +166,29 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
   return (
     <div className="space-y-8">
       {/* Search and Controls */}
-      <div ref={controlsRef} className="glass-effect rounded-2xl p-6 card-shadow">
+      <div ref={controlsRef} className="surface-elevated rounded-2xl p-6">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl input-focus text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                placeholder="Search bookmarks..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch(searchQuery);
+                  }
+                }}
+                className="input-lg pl-12 pr-4 w-full"
+                placeholder="Search bookmarks, tags, or content..."
               />
+              {loading && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                  <div className="loading-spinner w-4 h-4"></div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -150,10 +196,10 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-3 rounded-xl transition-all duration-200 focus-ring ${
+              className={`btn p-3 transition-all duration-200 ${
                 showFilters || selectedTags.length > 0
-                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                  : 'button-secondary'
+                  ? 'btn-primary'
+                  : 'btn-secondary'
               }`}
             >
               <Filter className="w-4 h-4" />
@@ -165,7 +211,7 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
                 className={`p-2 rounded-lg transition-all duration-200 ${
                   viewMode === 'grid'
                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
                 <Grid className="w-4 h-4" />
@@ -175,7 +221,7 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
                 className={`p-2 rounded-lg transition-all duration-200 ${
                   viewMode === 'list'
                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
                 <List className="w-4 h-4" />
@@ -184,7 +230,8 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
 
             <button
               onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-              className="p-3 button-secondary rounded-xl focus-ring"
+              className="btn-secondary p-3"
+              title={`Sort ${sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}
             >
               {sortOrder === 'desc' ? <SortDesc className="w-4 h-4" /> : <SortAsc className="w-4 h-4" />}
             </button>
@@ -192,14 +239,20 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
         </div>
 
         {/* Results Info */}
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          <span>
-            {filteredBookmarks.length} of {bookmarks.length} bookmarks
-          </span>
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+            <TrendingUp className="w-4 h-4" />
+            <span>
+              {filteredBookmarks.length} of {bookmarks.length} bookmarks
+            </span>
+            {(selectedTags.length > 0 || searchQuery) && (
+              <span className="text-blue-600 dark:text-blue-400">• Filtered</span>
+            )}
+          </div>
           {(selectedTags.length > 0 || searchQuery) && (
             <button
               onClick={handleClearFilters}
-              className="text-red-600 dark:text-red-400 hover:underline focus-ring"
+              className="text-red-600 dark:text-red-400 hover:underline font-medium"
             >
               Clear filters
             </button>
@@ -220,15 +273,15 @@ export const BookmarkList: React.FC<BookmarkListProps> = ({
       {/* Bookmarks */}
       {filteredBookmarks.length === 0 ? (
         <div className="text-center py-16">
-          <div className="glass-effect rounded-2xl p-12 max-w-md mx-auto card-shadow">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <div className="surface-elevated rounded-2xl p-12 max-w-md mx-auto">
+            <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <Search className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-xl font-semibold gradient-text mb-3">
+            <h3 className="text-xl font-semibold text-gradient mb-3">
               No results found
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
-              Try adjusting your search terms or filters.
+              Try adjusting your search terms or filters to find what you're looking for.
             </p>
           </div>
         </div>
